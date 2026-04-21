@@ -125,23 +125,82 @@ host = "10.0.0.2"
 
 ## Primary reads
 
-By default, if replica databases are configured, the primary is treated as one of them when serving read queries. This is done to maximize the use of existing hardware and prevents overloading a replica when it is first added to the database cluster.
+The [`read_write_split`](../../configuration/pgdog.toml/general.md#read_write_split) setting controls how read queries are distributed between the primary and its replicas. Write queries always route to the primary.
 
-This behavior is configurable in [pgdog.toml](../../configuration/pgdog.toml/general.md#read_write_split). You can isolate your primary from read queries and allow it to only serve writes:
+In the tables below, **"Replicas healthy"** means at least one replica is healthy — reads are routed to healthy replicas even if other replicas are down. **"Replicas down"** means all replicas are down or banned.
+
+### `include_primary`
+
+The default mode. The primary serves both reads and writes alongside the replicas. This maximizes the use of existing hardware and prevents overloading a replica when it is first added to the database cluster.
+
+| Scenario | Writes | Reads |
+|---|---|---|
+| Primary healthy + Replicas healthy | Primary | Primary + Replicas |
+| Primary healthy + Replicas down | Primary | Primary |
+| Primary down + Replicas healthy | Unavailable | Replicas |
+| Primary down + Replicas down | Unavailable | Unavailable |
+
+```toml
+[general]
+read_write_split = "include_primary"  # default
+```
+
+### `exclude_primary`
+
+All reads go to replicas only; the primary handles writes exclusively. Use this to isolate primary capacity for writes.
+
+| Scenario | Writes | Reads |
+|---|---|---|
+| Primary healthy + Replicas healthy | Primary | Replicas |
+| Primary healthy + Replicas down | Primary | Unavailable |
+| Primary down + Replicas healthy | Unavailable | Replicas |
+| Primary down + Replicas down | Unavailable | Unavailable |
 
 ```toml
 [general]
 read_write_split = "exclude_primary"
 ```
 
-#### Failover for reads
+### `prefer_primary`
 
-In case one of your replicas fails, you can configure the primary to serve read queries temporarily while you (or your cloud vendor) bring the replica back up. This is configurable, like so:
+Reads go to the primary by default. Clients can opt specific reads into replicas using [manual routing](manual-routing.md) overrides (query comments, `SET LOCAL`, or `SET`). If all replicas are down, opted-in reads fall back to the primary.
+
+| Scenario | Writes | Reads |
+|---|---|---|
+| Primary healthy + Replicas healthy | Primary | Primary |
+| Primary healthy + Replicas down | Primary | Primary |
+| Primary down + Replicas healthy | Unavailable | Replicas (failover) |
+| Primary down + Replicas down | Unavailable | Unavailable |
+
+```toml
+[general]
+read_write_split = "prefer_primary"
+```
+
+See [routing precedence](manual-routing.md#routing-precedence) for how overrides interact with this mode.
+
+### `include_primary_if_replica_banned`
+
+Reads go to replicas, but the primary becomes a read failover if **all** replicas are banned or down. This keeps the primary write-focused during normal operation while providing read availability during replica outages.
+
+| Scenario | Writes | Reads |
+|---|---|---|
+| Primary healthy + Replicas healthy | Primary | Replicas |
+| Primary healthy + Replicas down | Primary | Primary (failover) |
+| Primary down + Replicas healthy | Unavailable | Replicas |
+| Primary down + Replicas down | Unavailable | Unavailable |
 
 ```toml
 [general]
 read_write_split = "include_primary_if_replica_banned"
 ```
+
+### Failover for reads
+
+Two modes provide read failover to the primary when replicas are unavailable:
+
+- **`include_primary_if_replica_banned`** — when all replicas are down, the primary automatically serves reads until replicas recover.
+- **`prefer_primary`** — reads that have been opted into replicas via [manual routing](manual-routing.md#routing-precedence) overrides fall back to the primary when all replicas are down.
 
 ## Learn more
 

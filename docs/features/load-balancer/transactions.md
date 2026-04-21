@@ -77,3 +77,6 @@ COMMIT;
     ```
 
 While sending read queries to the primary adds additional load, it is often necessary in real-time systems that are not equipped to handle replication delays.
+
+!!! tip "Alternative: `prefer_primary` mode"
+    If most of your reads need the primary anyway, consider using [`read_write_split = "prefer_primary"`](../../configuration/pgdog.toml/general.md#read_write_split) instead of wrapping reads in `BEGIN`/`COMMIT`. This routes all reads to the primary by default and lets you opt specific lag-tolerant reads into replicas using [manual routing](manual-routing.md#routing-precedence) overrides.
