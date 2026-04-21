@@ -37,7 +37,7 @@ The `pgdog.role` parameter accepts the following values:
 | Parameter value | Behavior | Example |
 |-|-|-|
 | `primary` | All queries are sent to the primary database. | `SET pgdog.role TO "primary"` |
-| `replica` | All queries are load balanced between replica databases, and possibly the primary if [`read_write_split`](../../configuration/pgdog.toml/general.md#read_write_split) is set to `include_primary` (default). | `SET pgdog.role TO "replica"` |
+| `replica` | All queries are load balanced between replica databases. In `include_primary` mode (default), the primary is included in read balancing. In `prefer_primary` mode, this is the opt-in mechanism for directing specific reads to replicas. See [`read_write_split`](../../configuration/pgdog.toml/general.md#read_write_split). | `SET pgdog.role TO "replica"` |
 
 The `pgdog.shard` parameter accepts a shard number for any database specified in [`pgdog.toml`](../../configuration/pgdog.toml/databases.md), for example:
 
@@ -128,6 +128,12 @@ SET "pgdog"."role" TO "primary";
 
 The parameter is persisted on the connection until it's closed or the value is changed with another `SET` statement. Before routing a query, the load balancer will check the value of this parameter, so setting it early on during connection creation ensures all transactions are executed on the right database.
 
+To clear the connection-level override and revert reads to the config default, use `RESET`:
+
+```postgresql
+RESET "pgdog"."role";
+```
+
 #### Inside transactions
 
 It's possible to set routing hints for the lifetime of a single transaction, by using the `SET LOCAL` command. This ensures the routing hint is used for one transaction only and doesn't affect the rest of the queries:
@@ -152,6 +158,22 @@ In this example, all transaction statements (including the `BEGIN` statement) wi
     ```
 
 
+
+## Routing precedence
+
+When multiple routing mechanisms are active, PgDog resolves them using a 4-layer precedence system — the highest-priority mechanism wins:
+
+| Priority | Mechanism | Scope | Example |
+|---|---|---|---|
+| 1 (highest) | Query comment | Single statement | `/* pgdog_role: replica */ SELECT ...` |
+| 2 | Transaction parameter | Single transaction | `SET LOCAL pgdog.role = 'replica'` |
+| 3 | Connection parameter | All reads on the connection | `SET pgdog.role = 'replica'` |
+| 4 (lowest) | Config default | All reads in the pool | `read_write_split` mode setting |
+
+A query comment overrides everything. A transaction parameter (`SET LOCAL`) overrides the connection parameter and config default for the duration of a single transaction — once the transaction commits or rolls back, the value reverts to the connection-level setting. A connection parameter overrides only the config default.
+
+!!! note "Failover"
+    In `prefer_primary` mode, overrides that opt a read into replicas still keep the primary as the final failover target: if all replicas are down or banned, that read falls back to the primary when one is available.
 
 ## Disabling the parser
 
