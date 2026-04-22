@@ -199,6 +199,9 @@ query_parser = "off"
 
 Once it's disabled, PgDog will rely solely on the `pgdog.role` and `pgdog.shard` parameters to make its routing decisions.
 
+!!! note "`prefer_primary` with parser disabled"
+    `prefer_primary` requires the query parser to distinguish reads from writes. When the parser is off, all queries route to the primary via the write path — `prefer_primary` is effectively a no-op. PgDog emits a startup warning when this combination is detected.
+
 ### Session state & `SET`
 
 The query parser is used to intercept and interpret `SET` commands. If the parser is disabled and your application uses `SET` commands to configure the connection, PgDog will not be able to guarantee that all connections have the correct session settings in [transaction mode](../transaction-mode.md).
