@@ -22,7 +22,7 @@ The PostgreSQL query language supports adding inline comments to queries. They a
 |-|-|-|
 | `pgdog_shard` | Instructs the query router to send this query to the specified shard, as a [direct-to-shard](query-routing.md) query. | ```/* pgdog_shard: 0 */ SELECT * FROM users``` |
 | `pgdog_sharding_key` | Gives the sharding key to the query router and lets it decide where the query should be sent. | ```/* pgdog_sharding_key: 1234 */ SELECT * FROM users ``` |
-| `pgdog_role` | Instructs the query router to send this query to the primary database. | ```/* pgdog_role: primary */ SELECT * FROM users ``` |
+| `pgdog_role` | Instructs the query router to send this query to the primary database. | ```/* pgdog_role: prefer-primary */ SELECT * FROM users ``` |
 
 #### Examples
 
@@ -42,7 +42,7 @@ The PostgreSQL query language supports adding inline comments to queries. They a
     This query will be sent to the primary, even if it only reads data:
 
     ```postgresql
-    /* pgdog_role: primary */ SELECT * FROM users LIMIT 1;
+    /* pgdog_role: prefer-primary */ SELECT * FROM users LIMIT 1;
     ```
 
 The comment can appear anywhere in the query, as long as it's syntactically valid.

@@ -13,13 +13,13 @@ This can be done on a per-query basis by using a comment, or on the entire clien
 If your query is replica-lag sensitive (e.g., you are reading data that you just wrote), you can route it to the primary manually. The load balancer supports doing this with a query comment:
 
 ```postgresql
-/* pgdog_role: primary */ SELECT * FROM users WHERE id = $1
+/* pgdog_role: prefer-primary */ SELECT * FROM users WHERE id = $1
 ```
 
-The `force-primary` and `force-replica` variants are also supported in query comments, allowing you to bypass the parser's read-eligibility check on a per-statement basis:
+The `primary` and `replica` variants are also supported in query comments, allowing you to bypass the parser's read-eligibility check on a per-statement basis:
 
 ```postgresql
-/* pgdog_role: force-replica */ CREATE TEMP TABLE scratch AS SELECT * FROM large_table
+/* pgdog_role: replica */ CREATE TEMP TABLE scratch AS SELECT * FROM large_table
 ```
 
 Query comments are supported in all types of queries, including prepared statements. If you're using the latter, the comments are parsed only once per client connection, removing any performance overhead of extracting them from the query.
@@ -42,13 +42,13 @@ The `pgdog.role` parameter accepts the following values:
 
 | Parameter value | Behavior | Example |
 |-|-|-|
-| `primary` | All queries are sent to the primary database. | `SET pgdog.role TO "primary"` |
-| `replica` | All queries are load balanced between replica databases. In `include_primary` mode (default), the primary is included in read balancing. In `prefer_primary` mode, this is the opt-in mechanism for directing specific reads to replicas. See [`read_write_split`](../../configuration/pgdog.toml/general.md#read_write_split). | `SET pgdog.role TO "replica"` |
-| `force-primary` | Routes to the primary regardless of statement type. Bypasses the read-eligibility check, so even statements the parser classifies as reads will be sent to the primary. | `SET pgdog.role TO "force-primary"` |
-| `force-replica` | Routes to a replica regardless of statement type. Bypasses the read-eligibility check, so even non-read statements (e.g. `CREATE TEMP TABLE`) will be sent to a replica. | `SET pgdog.role TO "force-replica"` |
+| `prefer-primary` | All queries are sent to the primary database. Only applies to statements the parser identifies as read-eligible; non-read statements are unaffected. | `SET pgdog.role TO "prefer-primary"` |
+| `prefer-replica` | All queries are load balanced between replica databases. In `include_primary` mode (default), the primary is included in read balancing. In `prefer_primary` mode, this is the opt-in mechanism for directing specific reads to replicas. Only applies to read-eligible statements. See [`read_write_split`](../../configuration/pgdog.toml/general.md#read_write_split). | `SET pgdog.role TO "prefer-replica"` |
+| `primary` | Routes to the primary regardless of statement type. Bypasses the read-eligibility check, so even statements the parser classifies as reads will be sent to the primary. | `SET pgdog.role TO "primary"` |
+| `replica` | Routes to a replica regardless of statement type. Bypasses the read-eligibility check, so even non-read statements (e.g. `CREATE TEMP TABLE`) will be sent to a replica. | `SET pgdog.role TO "replica"` |
 
 !!! note "Hyphen and underscore forms"
-    Both hyphenated (`force-replica`) and underscored (`force_replica`) forms are accepted.
+    Both hyphenated (`prefer-replica`) and underscored (`prefer_replica`) forms are accepted for the soft hints.
 
 The `pgdog.shard` parameter accepts a shard number for any database specified in [`pgdog.toml`](../../configuration/pgdog.toml/databases.md), for example:
 
@@ -65,7 +65,7 @@ Configuring parameters can be done at connection creation, or by using the `SET`
 Most PostgreSQL client libraries support the database URL format and can accept connection parameters as part of the URL. For example, when using `psql`, you can set the `pgdog.role` parameter like so:
 
 ```
-psql postgres://user:password@host:6432/db?options=-c%20pgdog.role%3Dreplica
+psql postgres://user:password@host:6432/db?options=-c%20pgdog.role%3Dprefer-replica
 ```
 
 Depending on the environment, the parameters may need to be URL-encoded, e.g., `%20` is a space and `%3D` is the equals (`=`) sign.
@@ -82,7 +82,7 @@ Depending on the environment, the parameters may need to be URL-encoded, e.g., `
         host="10.0.0.0",
         port=6432,
         server_settings={
-            "pgdog.role": "primary",
+            "pgdog.role": "prefer-primary",
         }
     )
     ```
@@ -96,7 +96,7 @@ Depending on the environment, the parameters may need to be URL-encoded, e.g., `
         "postgresql+asyncpg://pgdog:pgdog@10.0.0.0:6432/pgdog",
         pool_size=20,
         # [...]
-        connect_args={"server_settings": {"pgdog.role": "primary"}},
+        connect_args={"server_settings": {"pgdog.role": "prefer-primary"}},
     )
     ```
 
@@ -112,7 +112,7 @@ Depending on the environment, the parameters may need to be URL-encoded, e.g., `
       username: user
       password: password
       host: 10.0.0.0
-      options: "-c pgdog.role=replica -c pgdog.shard=0"
+      options: "-c pgdog.role=prefer-replica -c pgdog.shard=0"
     ```
 
     These options are passed to the [`pg`](https://github.com/ged/ruby-pg) driver. If you're using it directly, you can create connections like so:
@@ -123,7 +123,7 @@ Depending on the environment, the parameters may need to be URL-encoded, e.g., `
     conn = PG.connect(
       host: "10.0.0.0",
       # [...]
-      options: "-c pgdog.role=primary -c pgdog.shard=1"
+      options: "-c pgdog.role=prefer-primary -c pgdog.shard=1"
     )
     ```
 
@@ -134,7 +134,7 @@ The PostgreSQL protocol supports changing connection parameters using the `SET` 
 For example, to make sure all subsequent queries are sent to the primary, you can execute the following statement:
 
 ```postgresql
-SET "pgdog"."role" TO "primary";
+SET "pgdog"."role" TO "prefer-primary";
 ```
 
 The parameter is persisted on the connection until it's closed or the value is changed with another `SET` statement. Before routing a query, the load balancer will check the value of this parameter, so setting it early on during connection creation ensures all transactions are executed on the right database.
@@ -151,7 +151,7 @@ It's possible to set routing hints for the lifetime of a single transaction, by 
 
 ```postgresql
 BEGIN;
-SET LOCAL "pgdog"."role" TO "primary";
+SET LOCAL "pgdog"."role" TO "prefer-primary";
 ```
 
 In this example, all transaction statements (including the `BEGIN` statement) will be sent to the primary database. Whether the transaction is committed or reverted, the value of `pgdog.role` will be reset to its previous value.
@@ -164,7 +164,7 @@ In this example, all transaction statements (including the `BEGIN` statement) wi
     ```postgresql
     BEGIN;
     SELECT * FROM users WHERE id = $1;
-    SET LOCAL pgdog.role TO "primary"; -- The client is already connected to a server.
+    SET LOCAL pgdog.role TO "prefer-primary"; -- The client is already connected to a server.
     INSERT INTO users (id) VALUES ($1); -- If connected to a replica, this will fail.
     ```
 
@@ -176,9 +176,9 @@ When multiple routing mechanisms are active, PgDog resolves them using a 4-layer
 
 | Priority | Mechanism | Scope | Example |
 |---|---|---|---|
-| 1 (highest) | Query comment | Single statement | `/* pgdog_role: replica */ SELECT ...` (also supports `force-primary` / `force-replica`) |
-| 2 | Transaction parameter | Single transaction | `SET LOCAL pgdog.role = 'replica'` |
-| 3 | Connection parameter | All reads on the connection | `SET pgdog.role = 'replica'` |
+| 1 (highest) | Query comment | Single statement | `/* pgdog_role: prefer-replica */ SELECT ...` (also supports `primary` / `replica`) |
+| 2 | Transaction parameter | Single transaction | `SET LOCAL pgdog.role = 'prefer-replica'` |
+| 3 | Connection parameter | All reads on the connection | `SET pgdog.role = 'prefer-replica'` |
 | 4 (lowest) | Config default | All reads in the pool | `read_write_split` mode setting |
 
 A query comment overrides everything. A transaction parameter (`SET LOCAL`) overrides the connection parameter and config default for the duration of a single transaction — once the transaction commits or rolls back, the value reverts to the connection-level setting. A connection parameter overrides only the config default.

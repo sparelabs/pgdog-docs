@@ -212,25 +212,25 @@ Each shard independently resolves primary/replica selection. During partial fail
 
 ### Omnisharded tables
 
-[Omnisharded](/features/sharding/omnishards/) table reads use round-robin shard selection. In `prefer_primary` mode, omnisharded reads route to the primary of the selected shard. To direct omnisharded reads to replicas for load distribution, use [`pgdog.role = 'replica'`](manual-routing.md#parameters) at the connection or query level.
+[Omnisharded](/features/sharding/omnishards/) table reads use round-robin shard selection. In `prefer_primary` mode, omnisharded reads route to the primary of the selected shard. To direct omnisharded reads to replicas for load distribution, use [`pgdog.role = 'prefer-replica'`](manual-routing.md#parameters) at the connection or query level.
 
-### `force-replica` and DDL
+### `replica` and DDL
 
-[DDL statements](/features/sharding/cross-shard-queries/ddl/) (`CREATE TABLE`, `ALTER`, `DROP`) are always classified as writes and sent to all shard primaries. The [`force-replica`](manual-routing.md) hint bypasses this classification and sends the DDL to all shard replicas instead — which will fail because replicas are read-only.
+[DDL statements](/features/sharding/cross-shard-queries/ddl/) (`CREATE TABLE`, `ALTER`, `DROP`) are always classified as writes and sent to all shard primaries. The [`replica`](manual-routing.md) hint bypasses this classification and sends the DDL to all shard replicas instead — which will fail because replicas are read-only.
 
 !!! warning
-    Use `force-replica` only on statements that replicas can execute (e.g., `CREATE TEMP TABLE`, read-only functions).
+    Use `replica` only on statements that replicas can execute (e.g., `CREATE TEMP TABLE`, read-only functions).
 
 ### Two-phase commit
 
-[Two-phase commit](/features/sharding/2pc/) applies to cross-shard writes only. `prefer_primary` affects reads only, so there is no direct conflict. However, within a transaction using `SET LOCAL pgdog.role = 'replica'`, the connection binds to a replica — any subsequent writes in that transaction will fail.
+[Two-phase commit](/features/sharding/2pc/) applies to cross-shard writes only. `prefer_primary` affects reads only, so there is no direct conflict. However, within a transaction using `SET LOCAL pgdog.role = 'prefer-replica'`, the connection binds to a replica — any subsequent writes in that transaction will fail.
 
 !!! note
     Routing hints must appear before the first statement in a transaction. See [statement ordering](manual-routing.md#inside-transactions).
 
 ### Query parser disabled
 
-`prefer_primary` requires the query parser to distinguish reads from writes. When [`query_parser = "off"`](manual-routing.md#disabling-the-parser), the parser is bypassed and all queries route to the primary via the write path. Use `pgdog.role = 'replica'` to explicitly route to replicas when the parser is disabled.
+`prefer_primary` requires the query parser to distinguish reads from writes. When [`query_parser = "off"`](manual-routing.md#disabling-the-parser), the parser is bypassed and all queries route to the primary via the write path. Use `pgdog.role = 'prefer-replica'` to explicitly route to replicas when the parser is disabled.
 
 ## Learn more
 

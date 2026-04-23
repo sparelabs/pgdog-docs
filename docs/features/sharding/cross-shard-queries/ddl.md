@@ -29,9 +29,9 @@ DROP INDEX IF EXISTS user_id_idx;
 CREATE INDEX CONCURRENTLY user_id_idx ON users USING btree(user_id);
 ```
 
-## `force-replica` and DDL
+## `replica` and DDL
 
-The [`force-replica`](/features/load-balancer/manual-routing/) routing hint bypasses the parser's read-eligibility check. When applied to DDL, the statement is sent to replicas on all shards instead of primaries — which will fail because replicas are read-only.
+The [`replica`](/features/load-balancer/manual-routing/) routing hint bypasses the parser's read-eligibility check. When applied to DDL, the statement is sent to replicas on all shards instead of primaries — which will fail because replicas are read-only.
 
 !!! warning
-    Use `force-replica` only on statements that replicas can execute (e.g., `CREATE TEMP TABLE`, read-only functions). See [sharding considerations](/features/load-balancer/#sharding-considerations) for more details.
+    Use `replica` only on statements that replicas can execute (e.g., `CREATE TEMP TABLE`, read-only functions). See [sharding considerations](/features/load-balancer/#sharding-considerations) for more details.

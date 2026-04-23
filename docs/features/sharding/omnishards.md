@@ -32,7 +32,7 @@ INSERT INTO omnisharded_table (id, value) VALUES ($1, $2);
 All configured shards will receive and store the same row. When reading that row, PgDog will choose one of the shards using the round robin algorithm, to distribute read load evenly.
 
 !!! note "`prefer_primary` mode"
-    In [`prefer_primary`](/features/load-balancer/#prefer_primary) mode, omnisharded reads route to the **primary** of the selected shard rather than being load balanced across replicas. To distribute omnisharded reads to replicas, use [`pgdog.role = 'replica'`](/features/load-balancer/manual-routing/#parameters) at the connection or query level.
+    In [`prefer_primary`](/features/load-balancer/#prefer_primary) mode, omnisharded reads route to the **primary** of the selected shard rather than being load balanced across replicas. To distribute omnisharded reads to replicas, use [`pgdog.role = 'prefer-replica'`](/features/load-balancer/manual-routing/#parameters) at the connection or query level.
 
 #### Sharded and omnisharded tables
 
