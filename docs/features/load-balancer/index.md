@@ -179,6 +179,9 @@ read_write_split = "prefer_primary"
 
 See [routing precedence](manual-routing.md#routing-precedence) for how overrides interact with this mode.
 
+!!! tip "Spreading reads across all servers"
+    The [`any`](manual-routing.md#parameters) role hint treats all servers (primary + replicas) as equal candidates for reads and lets the configured `load_balancing_strategy` pick the server, regardless of the `read_write_split` setting. This is useful when you want maximum read throughput from all available instances.
+
 ### `include_primary_if_replica_banned`
 
 Reads go to replicas, but the primary becomes a read failover if **all** replicas are banned or down. This keeps the primary write-focused during normal operation while providing read availability during replica outages.

@@ -16,6 +16,12 @@ If your query is replica-lag sensitive (e.g., you are reading data that you just
 /* pgdog_role: prefer-primary */ SELECT * FROM users WHERE id = $1
 ```
 
+The `any` hint spreads reads evenly across all servers (primary and replicas), ignoring the `read_write_split` setting:
+
+```postgresql
+/* pgdog_role: any */ SELECT * FROM reports WHERE created_at > now() - interval '1 day'
+```
+
 The `primary` and `replica` variants are also supported in query comments, allowing you to bypass the parser's read-eligibility check on a per-statement basis:
 
 ```postgresql
@@ -44,6 +50,7 @@ The `pgdog.role` parameter accepts the following values:
 |-|-|-|
 | `prefer-primary` | All queries are sent to the primary database. Only applies to statements the parser identifies as read-eligible; non-read statements are unaffected. | `SET pgdog.role TO "prefer-primary"` |
 | `prefer-replica` | All queries are load balanced between replica databases. In `include_primary` mode (default), the primary is included in read balancing. In `prefer_primary` mode, this is the opt-in mechanism for directing specific reads to replicas. Only applies to read-eligible statements. See [`read_write_split`](../../configuration/pgdog.toml/general.md#read_write_split). | `SET pgdog.role TO "prefer-replica"` |
+| `any` | Treats all servers (primary + replicas) as equal candidates for reads and lets the configured `load_balancing_strategy` pick the server. Ignores the `read_write_split` setting for matching queries. Only applies to read-eligible statements. | `SET pgdog.role TO "any"` |
 | `primary` | Routes to the primary regardless of statement type. Bypasses the read-eligibility check, so even statements the parser classifies as reads will be sent to the primary. | `SET pgdog.role TO "primary"` |
 | `replica` | Routes to a replica regardless of statement type. Bypasses the read-eligibility check, so even non-read statements (e.g. `CREATE TEMP TABLE`) will be sent to a replica. | `SET pgdog.role TO "replica"` |
 
